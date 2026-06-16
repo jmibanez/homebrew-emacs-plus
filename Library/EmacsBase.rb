@@ -647,6 +647,9 @@ class EmacsBase < Formula
     system "/usr/libexec/PlistBuddy -c 'Add NSSpeechRecognitionUsageDescription string' '#{plist}' || true"
     system "/usr/libexec/PlistBuddy -c 'Set NSSpeechRecognitionUsageDescription Emacs requires permission to handle any speech recognition.' '#{plist}' || true"
 
+    system "/usr/libexec/PlistBuddy -c 'Add NSContactsUsageDescription string' '#{plist}' || true"
+    system "/usr/libexec/PlistBuddy -c 'Set NSContactsUsageDescription Emacs requires permission to access your address book in Contacts.' '#{plist}' || true"
+
     # Prevent macOS from heuristically offering one-time-code AutoFill in Emacs text fields
     plist_set plist, "NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac", "bool", true
 
