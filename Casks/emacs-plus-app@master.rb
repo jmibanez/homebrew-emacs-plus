@@ -1,7 +1,7 @@
 cask "emacs-plus-app@master" do
   # Version format: <emacs-version>-<build-number>
   # Build number corresponds to GitHub Actions run number
-  version "32.0.50-345"
+  version "32.0.50-400"
 
   # Base URL for release assets (lane releases: cask-master-<build>)
   base_url = "https://github.com/d12frosted/homebrew-emacs-plus/releases/download/cask-master-#{version.sub(/^[\d.]+-/, "")}"
@@ -12,14 +12,11 @@ cask "emacs-plus-app@master" do
   # check, which broke tapping (#1005). `depends_on arch:` below is what
   # refuses the install on Intel.
   if MacOS.version >= :tahoe # macOS 26
-    sha256 "339b4cea29337a5629adebb462ec07f7fa19141689db5f441e34dcc798a09a02"
+    sha256 "933c671920cdb8bb88c08a2725ee9fe3a9a032ec4f6fc5c3bf12a9070cc6b18a"
     url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-26.zip"
-  elsif MacOS.version >= :sequoia # macOS 15
-    sha256 "26e0112e0e0662508d5bfeebb191c8662a0ef7207950b91e0a29b4344852b934"
+  else # macOS 15 (Sequoia)
+    sha256 "a21d5160476ebf515f9a01a3970ad80541614cb2fb5f1406e40572b4f46a1311"
     url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-15.zip"
-  else # macOS 14 (Sonoma)
-    sha256 "be57c45b0696f8f039d20fb9fa14f7a5b7f11b0e9767ba54b4bc4a2f099cc6a6"
-    url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-14.zip"
   end
 
   name "Emacs+ (Development)"
@@ -28,7 +25,7 @@ cask "emacs-plus-app@master" do
 
   # Conflict with other Emacs cask installations
   conflicts_with cask: [
-    "emacs",
+    "emacs-app",
     "emacs-mac",
     "emacs-mac-spacemacs-icon",
     "emacs-plus-app",
@@ -42,9 +39,10 @@ cask "emacs-plus-app@master" do
   # - libgccjit: JIT compilation library
   depends_on formula: "gcc"
   depends_on formula: "libgccjit"
-  # Oldest prebuilt arm64 binary targets macOS 14 (built on the macos-14
-  # runner), so Ventura cannot run it
-  depends_on macos: :sonoma
+  # Oldest prebuilt binary targets macOS 15 (built on the macos-15 runner).
+  # There is no Sonoma build: Homebrew stopped bottling for macOS 14, so
+  # building there meant compiling dependencies like llvm from source
+  depends_on macos: :sequoia
 
   # Install the app
   app "Emacs.app"
@@ -66,9 +64,18 @@ cask "emacs-plus-app@master" do
   # The step runs in Homebrew's sandbox with a scratch HOME; the build.yml
   # locations are declared so the script can still read them, and network
   # access is for icons pulled from a URL.
+  # The tap lives in HOMEBREW_REPOSITORY/Library/Taps, which is not under
+  # HOMEBREW_PREFIX when bin/brew links into a separate repository, and
+  # steps have no token for it. So bash reads it from the environment brew
+  # exports, falling back to the prefix (the default layout); Homebrew
+  # expands {{HOMEBREW_PREFIX}} before bash sees the program.
   postflight_steps do
-    run "{{HOMEBREW_PREFIX}}/Library/Taps/d12frosted/homebrew-emacs-plus/scripts/cask-postflight",
-        args:           ["--emacs-app", "{{appdir}}/Emacs.app",
+    run "/bin/bash",
+        args:           ["-c",
+                         'exec "${HOMEBREW_REPOSITORY:-{{HOMEBREW_PREFIX}}}/Library/Taps/' \
+                         'd12frosted/homebrew-emacs-plus/scripts/cask-postflight" "$@"',
+                         "cask-postflight",
+                         "--emacs-app", "{{appdir}}/Emacs.app",
                          "--emacs-client-app", "{{appdir}}/Emacs Client.app",
                          "--version", "{{version.major}}",
                          "--homebrew-prefix", "{{HOMEBREW_PREFIX}}"],

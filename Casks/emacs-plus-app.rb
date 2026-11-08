@@ -1,7 +1,7 @@
 cask "emacs-plus-app" do
   # Version format: <emacs-version>-<build-number>
   # Build number corresponds to GitHub Actions run number
-  version "31.1-341"
+  version "31.1-385"
 
   # Base URL for release assets (lane releases: cask-stable-<build>)
   base_url = "https://github.com/d12frosted/homebrew-emacs-plus/releases/download/cask-stable-#{version.sub(/^[\d.]+-/, "")}"
@@ -12,14 +12,11 @@ cask "emacs-plus-app" do
   # check, which broke tapping (#1005). `depends_on arch:` below is what
   # refuses the install on Intel.
   if MacOS.version >= :tahoe # macOS 26
-    sha256 "508e1279d7e3ece7a3c06546b4ceac6775ab2624caef19e1ec323f99366d7416"
+    sha256 "548d272aac9f9073c837405cc7e0de5aebe14f81cd50b3e822073fad517c5588"
     url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-26.zip"
-  elsif MacOS.version >= :sequoia # macOS 15
-    sha256 "460114ac483e3c8c99606751f26d3a4210c7fe4fb7ddcedfa35949b8bcf8ecb3"
+  else # macOS 15 (Sequoia)
+    sha256 "6dfa67f6fd356f9dc1903d20bf16a026b2e5f82fab8a05f172087463117fad04"
     url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-15.zip"
-  else # macOS 14 (Sonoma)
-    sha256 "34ce3532ae0c3e290fdfe9ee71cb90a5c3f6ed2abc9b882da2d162608d74f2c4"
-    url "#{base_url}/emacs-plus-#{emacs_ver}-arm64-14.zip"
   end
 
   name "Emacs+"
@@ -28,7 +25,7 @@ cask "emacs-plus-app" do
 
   # Conflict with other Emacs cask installations
   conflicts_with cask: [
-    "emacs",
+    "emacs-app",
     "emacs-mac",
     "emacs-mac-spacemacs-icon",
     "emacs-plus-app@master",
@@ -42,9 +39,10 @@ cask "emacs-plus-app" do
   # - libgccjit: JIT compilation library
   depends_on formula: "gcc"
   depends_on formula: "libgccjit"
-  # Oldest prebuilt arm64 binary targets macOS 14 (built on the macos-14
-  # runner), so Ventura cannot run it
-  depends_on macos: :sonoma
+  # Oldest prebuilt binary targets macOS 15 (built on the macos-15 runner).
+  # There is no Sonoma build: Homebrew stopped bottling for macOS 14, so
+  # building there meant compiling dependencies like llvm from source
+  depends_on macos: :sequoia
 
   # Install the app
   app "Emacs.app"
@@ -67,9 +65,18 @@ cask "emacs-plus-app" do
   # The step runs in Homebrew's sandbox with a scratch HOME; the build.yml
   # locations are declared so the script can still read them, and network
   # access is for icons pulled from a URL.
+  # The tap lives in HOMEBREW_REPOSITORY/Library/Taps, which is not under
+  # HOMEBREW_PREFIX when bin/brew links into a separate repository, and
+  # steps have no token for it. So bash reads it from the environment brew
+  # exports, falling back to the prefix (the default layout); Homebrew
+  # expands {{HOMEBREW_PREFIX}} before bash sees the program.
   postflight_steps do
-    run "{{HOMEBREW_PREFIX}}/Library/Taps/d12frosted/homebrew-emacs-plus/scripts/cask-postflight",
-        args:           ["--emacs-app", "{{appdir}}/Emacs.app",
+    run "/bin/bash",
+        args:           ["-c",
+                         'exec "${HOMEBREW_REPOSITORY:-{{HOMEBREW_PREFIX}}}/Library/Taps/' \
+                         'd12frosted/homebrew-emacs-plus/scripts/cask-postflight" "$@"',
+                         "cask-postflight",
+                         "--emacs-app", "{{appdir}}/Emacs.app",
                          "--emacs-client-app", "{{appdir}}/Emacs Client.app",
                          "--version", "{{version.major}}",
                          "--homebrew-prefix", "{{HOMEBREW_PREFIX}}"],
